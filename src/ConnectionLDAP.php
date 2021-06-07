@@ -1,7 +1,9 @@
 <?php
 
 namespace hakuryo\ldap;
+
 use Exception;
+use hakuryo\ldap\traits\ActiveDirectoryOperation;
 use hakuryo\ldap\utils\ConfigParser;
 use JsonException;
 
@@ -12,11 +14,52 @@ use JsonException;
  */
 class ConnectionLDAP {
 
+    use ActiveDirectoryOperation;
     use LdapUtils;
-
+    
     const MOD_ADD = 0;
     const MOD_REPLACE = 1;
     const MOD_DEL = 2;
+
+        /**
+     * AD user_account_control value
+     */
+    const USER_ACCOUNT_ENABLE = 0x0001;
+
+    /**
+     * AD user_account_control value
+     */
+    const USER_ACCOUNT_DISABLE = 0x0002;
+
+    /**
+     * AD user_account_control value
+     */
+    const USER_PASSWD_NOTREQD = 0x0020;
+
+    /**
+     * AD user_account_control value
+     */
+    const USER_PASSWD_CANT_CHANGE = 0x0040;
+
+    /**
+     * AD user_account_control value
+     */
+    const USER_NORMAL_ACCOUNT = 0x0200;
+
+    /**
+     * AD user_account_control value
+     */
+    const USER_DONT_EXPIRE_PASSWD = 0x10000;
+
+    /**
+     * AD user_account_control value
+     */
+    const USER_PASSWORD_EXPIRED = 0x800000;
+
+    /**
+     * AD user_account_control value
+     */
+    const ADS_SYSTEMFLAG_DISALLOW_DELETE = 0x80000000;
 
     public $connection;
     private $search_options;

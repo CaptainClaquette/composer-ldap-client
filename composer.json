@@ -12,6 +12,7 @@
     "autoload": {
         "classmap": [
             "src/",
+            "src/traits/",
             "src/utils/"
         ]
     },
