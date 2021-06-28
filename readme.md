@@ -1,3 +1,9 @@
+## Patch Note
+
+### 1.1.1 (Breaking changes)
+
+- Rename `ConnectionLDAP::fromFile` to `ConnectionLDAP::from_file` fit naming convention.
+
 ## Install
 
 > composer require hakuryo/ldap-client:^1

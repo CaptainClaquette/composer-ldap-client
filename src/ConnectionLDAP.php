@@ -93,7 +93,7 @@ class ConnectionLDAP {
      * @throws Exception
      * @return \hakuryo\ldap\ConnectionLDAP
      */
-    public static function fromFile(string $path, string $section = null): ConnectionLDAP {
+    public static function from_file(string $path, string $section = null): ConnectionLDAP {
         $conf = ConfigParser::parse_config_file($path, $section);
         $ldap = new ConnectionLDAP($conf->host, $conf->user, $conf->pwd, new LdapSearchOptions($conf->base_dn));
         return $ldap;
