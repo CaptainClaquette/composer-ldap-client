@@ -41,10 +41,10 @@ use hakuryo\ldap\ConnectionLDAP;
 $ldap = new ConnectionLDAP("myldap.mydomain.com","uid=user,ou=people,dc=mydomain,dc=com")
 
 // From File
-$ldap = ConnectionLDAP::fromFile("path_to_my_ldap_ini_file");
+$ldap = ConnectionLDAP::from_file("path_to_my_ldap_ini_file");
 
 // You can specify a section of your ini file
-$ldap = ConnectionLDAP::fromFile("path_to_my_ldap_ini_file","ldap_section");
+$ldap = ConnectionLDAP::from_file("path_to_my_ldap_ini_file","ldap_section");
 
 //ldap_search
 $ldap_filter = "memberof=cn=admin,ou=groups,dc=mydomain,dc=com";
