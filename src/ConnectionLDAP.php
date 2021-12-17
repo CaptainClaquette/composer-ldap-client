@@ -7,6 +7,7 @@ use hakuryo\ldap\LdapBatchModification as LdapLdapBatchModification;
 use hakuryo\ldap\traits\ActiveDirectoryOperation;
 use hakuryo\ldap\utils\ConfigParser;
 use JsonException;
+use stdClass;
 
 /**
  * Description of ConnectionLDAP
@@ -132,13 +133,13 @@ class ConnectionLDAP
      * @param array $returnedAttrs [Optionnel] Tableau d'attribut a retourner. Defaut = ['*']
      * @return stdclass retourne un stdClass vide si aucun resultat ne correspond a $filter
      */
-    public function get_entry(string $filter, array $returnedAttrs = ['*']): \stdclass
+    public function get_entry(string $filter, array $returnedAttrs = ['*']): stdClass
     {
         $limit = $this->search_options->get_result_limit();
         $this->search_options->set_result_limit(1);
         $res = $this->search($filter, $returnedAttrs);
         $this->search_options->set_result_limit($limit);
-        return count($res) > 0 ? $res[0] : new \stdClass();
+        return count($res) > 0 ? $res[0] : new stdClass();
     }
 
     /**
