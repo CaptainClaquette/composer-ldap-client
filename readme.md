@@ -1,5 +1,27 @@
 ## Patch Note
 
+### 2.0.0 (breaking change)
+
+- cleaned unused code
+- refactoring project, classes moved in new directory / namespace 
+- Naming convention is now CamelCase
+- getEntry now return null if no result instead of stdclass
+- Ldap operation now throw specifique errors
+  - search / list / getEntry => LDAPSearchException
+  - add => LDAPAddException
+  - modify => LDAPModifyException
+  - delete => LDAPDeleteException
+  - fromFile => LDAPConnectException / LDAPBinDException
+
+#### new function
+
+- list perform a single level search to get more performance.
+
+#### modified function
+
+- search now perform a subtree search event if scope is one_level.
+- getEntry perform a search taking account of scope
+
 ### 1.1.1 (Breaking changes)
 
 - Rename `ConnectionLDAP::fromFile` to `ConnectionLDAP::from_file` fit naming convention.
@@ -12,7 +34,7 @@
 
 ### Mandatory
 
-- PHP >= 7.x 
+- PHP >= 8.1 
 
 ## Features
 - Parsing client config from INI and JSON file
@@ -28,6 +50,9 @@ HOST="ldap://myldap.mydomain.com"
 USER="cn=admin,dc=mydomain, dc=com"
 DN="dc=mydomain, dc=com"
 PWD="my_super_secure_password"
+;OPTIONAL
+;network_timeout in second
+TIMEOUT=5
 ```
 
 ### ConnectionLDAP usage
@@ -55,14 +80,14 @@ foreach($result as $entry){
 }
 
 // get an specifique entry
-$ldap->get_entry($ldap_filer,$attr_list);
+$ldap->getEntry($ldap_filer,$attr_list);
 
 // Modify serach_options
-$ldap->get_search_options()->set_base_dn("ou=my_ou,dc=exemple,dc=com");
-$ldap->get_search_options()->set_result_limit(1);
-$ldap->get_search_options()->set_scope(LdapSearchOptions::SEARCH_SCOPE_ONE_LEVEL);
+$ldap->getSearchOptions()->setBaseDN("ou=my_ou,dc=exemple,dc=com");
+$ldap->getSearchOptions()->setResultLimit(1);
+$ldap->getSearchOptions()->setScope(LdapSearchOptions::SEARCH_SCOPE_ONE_LEVEL);
 
 // You can chain modification
-$ldap->get_search_options()->set_result_limit(1)->set_scope(LdapSearchOptions::SEARCH_SCOPE_ONE_LEVEL);
+$ldap->getSearchOptions()->setResultLimit(1)->setScope(LdapSearchOptions::SEARCH_SCOPE_ONE_LEVEL);
 
 ```

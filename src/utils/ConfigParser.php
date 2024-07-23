@@ -10,7 +10,7 @@ class ConfigParser
 {
     const MANDATORY_KEY = ["HOST", "PWD", "USER", "DN"];
 
-    public static function parse_config_file($path, $section)
+    public static function parseConfigFile($path, $section)
     {
         if (!file_exists($path)) {
             throw new Exception("File $path not found or is not readable");
@@ -22,26 +22,26 @@ class ConfigParser
         switch ($ext) {
             case "json":
                 if (mime_content_type($path) === "application/json") {
-                    return self::parse_json($path, $section);
+                    return self::parseJSON($path, $section);
                 }
                 throw new JsonException("Config file is not a json file or the JSON syntaxe is invalide");
                 break;
             case "ini":
-                return self::parse_ini($path, $section);
+                return self::parseINI($path, $section);
                 break;
             default:
                 throw new Exception("Unsupported config file type must be 'json' or 'ini'");
         }
     }
 
-    public static function parse_ini($path, $section): stdClass
+    public static function parseINI($path, $section): stdClass
     {
         if ($section === null) {
             $raw_conf = parse_ini_file($path);
         } else {
             $raw_conf = parse_ini_file($path, true);
-            self::section_exist($raw_conf, $section);
-            $raw_conf = parse_ini_file($path, true)[$section];
+            self::sectionExist($raw_conf, $section);
+            $raw_conf = $raw_conf[$section];
         }
         $keys = self::MANDATORY_KEY;
 
@@ -54,17 +54,17 @@ class ConfigParser
                 throw new Exception("You must provide a ini file with the followings keys '" . implode("','", $keys) . "'");
             }
         }
-        return self::make_ldap_config($raw_conf);
+        return self::makeLDAPConfig($raw_conf, $section);
     }
 
-    public static function parse_json($path, $section): stdClass
+    public static function parseJSON($path, $section): stdClass
     {
         $raw_conf = json_decode(file_get_contents($path), false, 512, JSON_THROW_ON_ERROR);
         if (!$raw_conf) {
             throw new JsonException(json_last_error_msg(), json_last_error());
         }
         if ($section != null) {
-            self::section_exist($raw_conf, $section);
+            self::sectionExist($raw_conf, $section);
             $raw_conf = $raw_conf->$section;
         }
         $keys = self::MANDATORY_KEY;
@@ -78,10 +78,10 @@ class ConfigParser
                 throw new Exception("You must provide a json file with the followings keys '" . implode("','", $keys) . "'");
             }
         }
-        return self::make_ldap_config($raw_conf);
+        return self::makeLDAPConfig($raw_conf, $section);
     }
 
-    private static function section_exist($config, $section)
+    private static function sectionExist($config, $section)
     {
         if (is_array($config)) {
             if (!array_key_exists($section, $config)) {
@@ -95,14 +95,16 @@ class ConfigParser
         }
     }
 
-    private static function make_ldap_config($raw_conf)
+    private static function makeLDAPConfig($raw_conf, $section)
     {
-        $raw_conf = (object) $raw_conf;
+        $raw_conf = (object)$raw_conf;
         $config = new stdClass();
         $config->user = $raw_conf->USER;
         $config->pwd = $raw_conf->PWD;
         $config->base_dn = $raw_conf->DN;
         $config->host = $raw_conf->HOST;
+        $config->timeout = property_exists($raw_conf, 'TIMEOUT') ? intval($raw_conf->TIMEOUT) : 3;
+        $config->name = property_exists($raw_conf, 'NAME') ? $raw_conf->NAME : $section;
         return $config;
     }
 }
