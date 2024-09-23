@@ -1,10 +1,14 @@
 ## Patch Note
 
+### 2.1.0
+
+- Add pagination param to search function
+
 ### 2.0.0 (breaking change)
 
 - cleaned unused code
 - refactoring project, classes moved in new directory / namespace 
-- Naming convention is now CamelCase
+- Naming convention is now camelCase
 - getEntry now return null if no result instead of stdclass
 - Ldap operation now throw specifique errors
   - search / list / getEntry => LDAPSearchException
