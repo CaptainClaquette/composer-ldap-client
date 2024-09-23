@@ -93,11 +93,26 @@ class ConnectionLDAP
      * @return array Tableau associatif avec les noms d'attributs ldap en tant que clef.
      * @see ldap_search
      */
-    public function search(string $filter, array $returnedAttrs = ['*']): array
+    public function search(string $filter, array $returnedAttrs = ['*'],?int $pageSize = null): array
     {
         $entrys = [];
-        $research = @ldap_search($this->connection, $this->searchOptions->getBaseDN(), $filter, $returnedAttrs, 0, $this->searchOptions->getResultLimit());
-        self::processResults($this, $research, $entrys);
+        if ($pageSize != null) {
+            $controls = [];
+            $cookie = '';
+            do {
+                $research = @ldap_search($this->connection, $this->searchOptions->getBaseDN(), $filter,
+                    $returnedAttrs,0, $this->searchOptions->getResultLimit(), 0, LDAP_DEREF_NEVER,
+                    [['oid' => LDAP_CONTROL_PAGEDRESULTS, 'value' => ['size' => $pageSize, 'cookie' => $cookie]]]
+                );
+                ldap_parse_result(ldap: $this->connection, result: $research, error_code: $errCode, controls: $controls);
+                self::processResults($this, $research, $entrys);
+                $cookie = $controls[LDAP_CONTROL_PAGEDRESULTS]['value']['cookie'] ?? '';
+            } while (!empty($cookie));
+        } else {
+            $research = @ldap_search($this->connection, $this->searchOptions->getBaseDN(), $filter, $returnedAttrs, 0, $this->searchOptions->getResultLimit());
+            self::processResults($this, $research, $entrys);
+        }
+
         return $entrys;
     }
 

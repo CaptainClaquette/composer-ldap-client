@@ -1,5 +1,9 @@
 ## Patch Note
 
+### 2.1.0
+
+- Add pagination param to search function
+
 ### 2.0.0 (breaking change)
 
 - cleaned unused code
