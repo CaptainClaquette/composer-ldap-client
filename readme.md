@@ -1,5 +1,46 @@
 ## Patch Note
 
+### 2.2.0 (breaking change)
+
+#### feature
+
+- Add trackBy param to search and list function. This param will replace the auto index key of the array by the value of the key for the corresponding line.
+
+exemple:
+```PHP
+
+$ldap = ConnectionLDAP::fromFile("my_file",'ldap');
+$res = $ldap->search(filter:"objectClass=person",trackBy:"mail");
+print_r($res);
+// Will ouptut something like this with uid= toto32 sn=toto and mail=toto@domaine.fr
+Array
+(
+  ["toto@domaine.fr"] => stdClass Object
+  (
+      [uid] => toto32
+      [sn] => toto
+      [mail] => toto@domaine.fr
+  ) 
+)
+
+``` 
+- Add Callback param to **search**,**list** and **get** function to act on lines when they are read.
+
+
+### change
+
+- Param returnedAttrs of **search**,**list** and **get** function now accept a comma separated list of attribute name.
+- returnedAttrs keys now respect schema description. They are no longer converted to lowercase.
+  - before : objectclass
+  - after : objectClass
+- Autloading is now PSR-4 instead of classmap.
+- Changed the namespace of Exception classes to be PSR-4 compliant
+- Removed ConfigParser class using hakuryo/config-parser instead
+
+#### fix
+
+- list function now use pagination as intended
+
 ### 2.1.0
 
 - Add pagination param to search function

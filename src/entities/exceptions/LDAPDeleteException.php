@@ -1,6 +1,6 @@
 <?php
 
-namespace hakuryo\ldap\exceptions;
+namespace hakuryo\ldap\entities\exceptions;
 
 class LDAPDeleteException extends \Exception
 {

@@ -1,26 +1,25 @@
 {
-    "name": "hakuryo/ldap-client",
-    "description": "A simple LDAP client with a lot a helper function",
-    "type": "library",
-    "license": "MIT",
-    "authors": [
-        {
-            "name": "Hakuryo",
-            "email": "kevin.dere@univ-reims.fr"
-        }
-    ],
-    "autoload": {
-        "classmap": [
-            "src/",
-            "src/traits/",
-            "src/utils/"
-        ]
-    },
-    "require": {
-        "php": ">=8.1.0",
-        "ext-ldap": "*"
-    },
-    "require-dev": {
-        "phpunit/phpunit": "^9"
+  "name": "hakuryo/ldap-client",
+  "description": "A simple LDAP client with a lot a helper function",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Hakuryo",
+      "email": "kevin.dere@univ-reims.fr"
     }
+  ],
+  "autoload": {
+    "psr-4": {
+      "hakuryo\\ldap\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=8.1.0",
+    "ext-ldap": "*",
+    "hakuryo/config-parser": "^1.1"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5"
+  }
 }

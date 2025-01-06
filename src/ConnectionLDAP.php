@@ -3,18 +3,22 @@
 namespace hakuryo\ldap;
 
 use Exception;
-use hakuryo\ldap\exceptions\LDAPAddException;
-use hakuryo\ldap\exceptions\LDAPBindException;
-use hakuryo\ldap\exceptions\LDAPConnectException;
-use hakuryo\ldap\exceptions\LDAPDeleteException;
-use hakuryo\ldap\exceptions\LDAPModifyException;
-use hakuryo\ldap\exceptions\LDAPSearchException;
-use hakuryo\ldap\LdapBatchModification as LdapLdapBatchModification;
+use hakuryo\ConfigParser\ConfigParser;
+use hakuryo\ConfigParser\exceptions\FileNotFoundException;
+use hakuryo\ConfigParser\exceptions\InvalidSectionException;
+use hakuryo\ConfigParser\exceptions\UnsupportedFileTypeException;
+use hakuryo\ldap\entities\exceptions\LDAPAddException;
+use hakuryo\ldap\entities\exceptions\LDAPBindException;
+use hakuryo\ldap\entities\exceptions\LDAPConnectException;
+use hakuryo\ldap\entities\exceptions\LDAPDeleteException;
+use hakuryo\ldap\entities\exceptions\LDAPModifyException;
+use hakuryo\ldap\entities\exceptions\LDAPSearchException;
+use hakuryo\ldap\entities\LdapSearchOptions;
 use hakuryo\ldap\traits\ActiveDirectoryOperation;
-use hakuryo\ldap\utils\ConfigParser;
+use hakuryo\ldap\traits\LdapUtils;
 use JsonException;
-use LDAP\ResultEntry;
 use stdClass;
+
 use LDAP\Connection;
 
 /**
@@ -28,6 +32,7 @@ class ConnectionLDAP
     use ActiveDirectoryOperation;
     use LdapUtils;
 
+    const MANDATORY_KEY = ['USER', 'PWD', 'DN', 'HOST'];
     const USER_ACCOUNT_ENABLE = 0x0001;
     const USER_ACCOUNT_DISABLE = 0x0002;
     const USER_PASSWD_NOTREQD = 0x0020;
@@ -42,9 +47,8 @@ class ConnectionLDAP
     const MOD_DEL = 2;
 
     public false|Connection $connection;
-    public ?string $name;
-    public ?string $entryClass = \stdClass::class;
-    private $searchOptions;
+    private int $lastResultCount = 0;
+    private LdapSearchOptions $searchOptions;
 
     /**
      * Create a instance of ConnectionLDAP
@@ -72,85 +76,97 @@ class ConnectionLDAP
      * Create a instance of ConnectionLDAP from a ini file.
      * The ini file must have HOST,USER,PWD keys
      * @param string $path Path of the ini file
-     * @param string $section Section to use on the ini file.
-     * @return \hakuryo\ldap\ConnectionLDAP
-     * @throws Exception
+     * @param string|null $section Section to use on the ini file.
+     * @return ConnectionLDAP
+     * @throws LDAPConnectException
+     * @throws FileNotFoundException
+     * @throws UnsupportedFileTypeException
+     * @throws InvalidSectionException
      * @throws JsonException
+     * @throws LDAPBindException
      */
     public static function fromFile(string $path, string $section = null): ConnectionLDAP
     {
-        $conf = ConfigParser::parseConfigFile($path, $section);
+        $conf = self::make_ldap_config(ConfigParser::parse($path, $section, self::MANDATORY_KEY));
         $ldap = new ConnectionLDAP($conf->host, $conf->user, $conf->pwd, $conf->timeout, new LdapSearchOptions($conf->base_dn));
-        $ldap->name = $conf->name;
         return $ldap;
     }
 
     /**
-     * Retourne le resultat de $filter avec les attribut specifie dans $returnedAttrs
-     * en faisant une recherhc recursive à partir du base_dn
-     * @param String $filter Filtre ldap
-     * @param array $returnedAttrs [Optionnel] Tableau d'attribut a retourner. Defaut = ['*']
-     * @return array Tableau associatif avec les noms d'attributs ldap en tant que clef.
+     * Perform a recursive search with $filter and retrieve $returnedAttrs attributs from baseDN level
+     * @param string $filter The ldap filter.
+     * @param array|string $returnedAttrs An array of string, or a comma separated string list of wanted attributes. Default = ['*'].
+     * @param callable|null $callback function to execute when retrieving entry. Default = null.
+     * @param string|null $trackBy replace the auto index key of the array by the value of the key for the corresponding line.
+     * Tracking by "uid" will generate an array like so :
+     * * array['value_of_uid'] = "corresponding entry"
+     * @param int|null $pageSize Enable paginated search, and perform such search by $pageSize amount
+     * @return array|null return null if no result with
+     * @throws LDAPSearchException
      * @see ldap_search
      */
-    public function search(string $filter, array $returnedAttrs = ['*'],?int $pageSize = null): array
+    public function search(string $filter, array|string $returnedAttrs = ['*'], callable $callback = null, string $trackBy = null, ?int $pageSize = null): array|null
     {
-        $entrys = [];
+        $this->lastResultCount = 0;
+        $attrs = gettype($returnedAttrs) === "array" ? $returnedAttrs : explode(',', $returnedAttrs);
+        $entries = [];
         if ($pageSize != null) {
-            $controls = [];
-            $cookie = '';
-            do {
-                $research = @ldap_search($this->connection, $this->searchOptions->getBaseDN(), $filter,
-                    $returnedAttrs,0, $this->searchOptions->getResultLimit(), 0, LDAP_DEREF_NEVER,
-                    [['oid' => LDAP_CONTROL_PAGEDRESULTS, 'value' => ['size' => $pageSize, 'cookie' => $cookie]]]
-                );
-                ldap_parse_result(ldap: $this->connection, result: $research, error_code: $errCode, controls: $controls);
-                self::processResults($this, $research, $entrys);
-                $cookie = $controls[LDAP_CONTROL_PAGEDRESULTS]['value']['cookie'] ?? '';
-            } while (!empty($cookie));
+            $entries = $this->paginateSearch($filter, $attrs, $pageSize, $callback, $trackBy, true);
         } else {
-            $research = @ldap_search($this->connection, $this->searchOptions->getBaseDN(), $filter, $returnedAttrs, 0, $this->searchOptions->getResultLimit());
-            self::processResults($this, $research, $entrys);
+            $research = @ldap_search($this->connection, $this->searchOptions->getBaseDN(), $filter, $attrs, 0, $this->searchOptions->getResultLimit());
+            self::processResults($this, $research, $entries, $callback, $trackBy);
         }
-
-        return $entrys;
+        return count($entries) > 0 ? $entries : null;
     }
 
     /**
-     * Retourne le resultat de $filter avec les attribut specifie dans $returnedAttrs
-     * en faisant une recherche dans l'ou base_dn uniquement
-     * @param String $filter Filtre ldap
-     * @param array $returnedAttrs [Optionnel] Tableau d'attribut a retourner. Defaut = ['*']
-     * @return array Tableau associatif avec les noms d'attributs ldap en tant que clef.
-     * @see ldap_list
+     * Perform a search with $filter and retrieve $returnedAttrs attributs on baseDN level only
+     * @param string $filter The ldap filter.
+     * @param array|string $returnedAttrs An array of string, or a comma separated string list of wanted attributes. Default = ['*'].
+     * @param callable|null $callback function to execute when retrieving entry. Default = null.
+     * @param string|null $trackBy replace the auto index key of the array by the value of the key for the corresponding line.
+     * Tracking by "uid" will generate an array like so :
+     * * array['value_of_uid'] = "corresponding entry"
+     * @param int|null $pageSize Enable paginated search, and perform such search by $pageSize amount
+     * @return array|null return null if no result with
+     * @throws LDAPSearchException
+     * @see ldap_search
      */
-    public function list(string $filter, array $returnedAttrs = ['*']): array
+    public function list(string $filter, array|string $returnedAttrs = ['*'], callable $callback = null, string $trackBy = null, ?int $pageSize = null): array|null
     {
-        $entrys = [];
-        $research = ldap_list($this->connection, $this->searchOptions->getBaseDN(), $filter, $returnedAttrs, 0, $this->searchOptions->getResultLimit());
-        self::processResults($this, $research, $entrys);
-        return $entrys;
+        $this->lastResultCount = 0;
+        $attrs = gettype($returnedAttrs) === "array" ? $returnedAttrs : explode(',', $returnedAttrs);
+        $entries = [];
+        if ($pageSize != null) {
+            $entries = $this->paginateSearch($filter, $attrs, $pageSize, $callback, $trackBy);
+        } else {
+            $research = ldap_list($this->connection, $this->searchOptions->getBaseDN(), $filter, $attrs, 0, $this->searchOptions->getResultLimit());
+            self::processResults($this, $research, $entries, $callback, $trackBy);
+        }
+        return count($entries) > 0 ? $entries : null;
     }
 
     /**
-     * Retourne l'entree corespondant a $filter avec les attributs specifie dans $returnedAttrs.
-     * @param string $filter le filtre LDAP
-     * @param array $returnedAttrs [Optionnel] Tableau d'attribut a retourner. Defaut = ['*']
-     * @return stdclass retourne un stdClass vide si aucun resultat ne correspond a $filter
+     * Return the first entry matching $filter with attributes specified by $returnedAttrs.
+     * @param string $filter The ldap filter.
+     * @param array|string $returnedAttrs An array of string, or a comma separated string list of wanted attributes. Default = ['*'].
+     * @param callable|null $callback function to execute when retrieving entry. Default = null.
+     * @return stdclass|null return null if no result
      * @throws LDAPSearchException
      */
-    public function getEntry(string $filter, array $returnedAttrs = ['*']): stdClass|null
+    public function getEntry(string $filter, array|string $returnedAttrs = ['*'], callable $callback = null): stdClass|null
     {
+        $attrs = gettype($returnedAttrs) === "array" ? $returnedAttrs : explode(',', $returnedAttrs);
         if ($this->searchOptions->getScope() === LdapSearchOptions::SEARCH_SCOPE_SUB) {
-            $research = ldap_search($this->connection, $this->searchOptions->getBaseDN(), $filter, $returnedAttrs, 0, 1);
+            $research = ldap_search($this->connection, $this->searchOptions->getBaseDN(), $filter, $attrs, 0, 1);
         } else {
-            $research = ldap_list($this->connection, $this->searchOptions->getBaseDN(), $filter, $returnedAttrs, 0, 1);
+            $research = ldap_list($this->connection, $this->searchOptions->getBaseDN(), $filter, $attrs, 0, 1);
         }
         if (!$research) {
             throw new LDAPSearchException("Can't perform research cause : " . $this->getLastError());
         }
         $entry = ldap_first_entry($this->connection, $research);
-        return $entry !== false ? self::clearEntry($this, $entry) : null;
+        return $entry !== false ? self::clearEntry($this, $entry, $callback) : null;
     }
 
     /**
@@ -159,7 +175,7 @@ class ConnectionLDAP
      * @param array $target_entry_attr The attributes to modify and there values or a LdapBatchModification object
      * @param int $modify_type can be one of the constant MOD_ADD,MOD_DEL,MOD_REPLACE of ConnectionLDAP. default : MOD_REPLACE
      * @return bool Return True on success.
-     * @throws Exception throw an exception on fail.
+     * @throws LDAPModifyException throw an exception on fail.
      */
     public function modify(string $entry_dn, $target_entry_attr, int $modify_type = self::MOD_REPLACE): bool
     {
@@ -213,7 +229,7 @@ class ConnectionLDAP
     /**
      * Close the ldap connection
      */
-    public function disconect()
+    public function disconect(): void
     {
         ldap_close($this->connection);
     }
@@ -222,5 +238,40 @@ class ConnectionLDAP
     public function getSearchOptions(): LdapSearchOptions
     {
         return $this->searchOptions;
+    }
+
+    private static function make_ldap_config($rawConf): stdClass
+    {
+        $config = new stdClass();
+        $config->user = $rawConf->USER;
+        $config->pwd = $rawConf->PWD;
+        $config->base_dn = $rawConf->DN;
+        $config->host = $rawConf->HOST;
+        $config->timeout = property_exists($rawConf, 'TIMEOUT') ? $rawConf->TIMEOUT : 5;
+        return $config;
+    }
+
+    private function paginateSearch(string $filter, array|string $returnedAttrs, int $pageSize, callable|null $callback, string|null $trackBy, bool $recursive = false): array|null
+    {
+        $controls = [];
+        $cookie = '';
+        $entries = [];
+        do {
+            if ($recursive) {
+                $research = @ldap_search($this->connection, $this->searchOptions->getBaseDN(), $filter,
+                    $returnedAttrs, 0, $this->searchOptions->getResultLimit(), 0, LDAP_DEREF_NEVER,
+                    [['oid' => LDAP_CONTROL_PAGEDRESULTS, 'value' => ['size' => $pageSize, 'cookie' => $cookie]]]
+                );
+            } else {
+                $research = @ldap_list($this->connection, $this->searchOptions->getBaseDN(), $filter,
+                    $returnedAttrs, 0, $this->searchOptions->getResultLimit(), 0, LDAP_DEREF_NEVER,
+                    [['oid' => LDAP_CONTROL_PAGEDRESULTS, 'value' => ['size' => $pageSize, 'cookie' => $cookie]]]
+                );
+            }
+            ldap_parse_result(ldap: $this->connection, result: $research, error_code: $errCode, controls: $controls);
+            self::processResults($this, $research, $entries, $callback, $trackBy);
+            $cookie = $controls[LDAP_CONTROL_PAGEDRESULTS]['value']['cookie'] ?? '';
+        } while (!empty($cookie));
+        return $entries;
     }
 }

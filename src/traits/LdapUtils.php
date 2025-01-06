@@ -1,16 +1,17 @@
 <?php
 
-namespace hakuryo\ldap;
+namespace hakuryo\ldap\traits;
 
 use Exception;
-use hakuryo\ldap\exceptions\LDAPSearchException;
+use hakuryo\ldap\ConnectionLDAP;
+use hakuryo\ldap\entities\exceptions\LDAPSearchException;
 
 trait LdapUtils
 {
 
-    public static function clearEntry(ConnectionLDAP $connection, $entry): \stdClass
+    public static function clearEntry(ConnectionLDAP $connection, $entry, ?callable $callback): \stdClass
     {
-        $temp = new $connection->entryClass();
+        $temp = new \stdClass();
         $temp->dn = ldap_get_dn($connection->connection, $entry);
         $attributs = ldap_get_attributes($connection->connection, $entry);
         unset($attributs["count"]);
@@ -20,24 +21,34 @@ trait LdapUtils
                 $temp->$key = count($value) > 1 ? $value : $value[0];
             }
         }
+        if ($callback != null) {
+            call_user_func($callback, $temp);
+        }
         return $temp;
     }
 
 
-    public static function processResults(ConnectionLDAP $connection, $results, &$entrys, $class = \stdClass::class): void
+    public static function processResults(ConnectionLDAP $connection, $results, &$entries, ?callable $callback, ?string $trackBy): void
     {
         if (!$results) {
             throw new LDAPSearchException("Can't perform research cause : " . $connection->getLastError());
         }
-        $entryId = ldap_first_entry($connection->connection, $results);
-        if ($entryId !== false) {
-            $entry = self::clearEntry($connection, $entryId, $class);
-            $entrys[] = $entry;
-            while ($entryId = ldap_next_entry($connection->connection, $entryId)) {
-                $entry = self::clearEntry($connection, $entryId, $class);
-                $entrys[] = $entry;
+        $entryId = null;
+        do {
+            if ($entryId === null) {
+                $entryId = ldap_first_entry($connection->connection, $results);
+            } else {
+                $entryId = ldap_next_entry($connection->connection, $entryId);
             }
-        }
+            if ($entryId !== false) {
+                $entry = self::clearEntry($connection, $entryId, $callback);
+                if ($trackBy != null) {
+                    $entries[$entry->$trackBy] = $entry;
+                } else {
+                    $entries[] = $entry;
+                }
+            }
+        } while ($entryId);
     }
 
     public
