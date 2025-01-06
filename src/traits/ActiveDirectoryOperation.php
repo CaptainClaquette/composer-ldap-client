@@ -46,6 +46,8 @@ trait ActiveDirectoryOperation
                 throw new LDAPModifyException("[LDAPActiveDirectoryTools::set_password] fail set password for user $cn, cause : " . $this->getLastError());
             }
             return true;
+        }else{
+            throw new LDAPSearchException("[LDAPActiveDirectoryTools::set_password] Can't retrieve entry cause : " . $this->getLastError());
         }
     }
 }
