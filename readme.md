@@ -73,13 +73,13 @@ Array
 
 ## Install
 
-> composer require hakuryo/ldap-client:^1
+> composer require hakuryo/ldap-client
 
 ## Dependencies
 
 ### Mandatory
 
-- PHP >= 8.1 
+- PHP >= 8.1
 
 ## Features
 - Parsing client config from INI and JSON file
@@ -111,21 +111,21 @@ use hakuryo\ldap\ConnectionLDAP;
 $ldap = new ConnectionLDAP("myldap.mydomain.com","uid=user,ou=people,dc=mydomain,dc=com")
 
 // From File
-$ldap = ConnectionLDAP::from_file("path_to_my_ldap_ini_file");
+$ldap = ConnectionLDAP::fromFile("path_to_my_ldap_ini_file");
 
 // You can specify a section of your ini file
-$ldap = ConnectionLDAP::from_file("path_to_my_ldap_ini_file","ldap_section");
+$ldap = ConnectionLDAP::fromFile("path_to_my_ldap_ini_file","ldap_section");
 
 //ldap_search
-$ldap_filter = "memberof=cn=admin,ou=groups,dc=mydomain,dc=com";
-$attr_list = ["uid","displayname","sn","givenname"];
-$results = $ldap->search($ldap_filer,$attr_list);
+$ldapFilter = "memberof=cn=admin,ou=groups,dc=mydomain,dc=com";
+$attrList = ["uid","displayname","sn","givenname"];
+$results = $ldap->search($ldapFilter,$attrList);
 foreach($result as $entry){
     echo json_encode($entry,JSON_PRETTY_PRINT);
 }
 
 // get an specifique entry
-$ldap->getEntry($ldap_filer,$attr_list);
+$ldap->getEntry($ldapFilter,$attrList);
 
 // Modify serach_options
 $ldap->getSearchOptions()->setBaseDN("ou=my_ou,dc=exemple,dc=com");
