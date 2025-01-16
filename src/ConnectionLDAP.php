@@ -212,6 +212,14 @@ class ConnectionLDAP
         return true;
     }
 
+    public function rename(string $entry_dn, string $rdn, string $parentOUDn): bool
+    {
+        if (!ldap_rename($this->connection, $entry_dn, $rdn, $parentOUDn, true)) {
+            throw new LDAPModifyException("Can't add ldap entry $entry_dn cause : " . $this->getLastError());
+        }
+        return true;
+    }
+
     /**
      * Delete the ldap entry specified by $entry_dn
      * @param string $entry_dn The distinguished name of the entry
