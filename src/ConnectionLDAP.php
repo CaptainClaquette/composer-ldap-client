@@ -163,7 +163,7 @@ class ConnectionLDAP
             $research = ldap_list($this->connection, $this->searchOptions->getBaseDN(), $filter, $attrs, 0, 1);
         }
         if (!$research) {
-            throw new LDAPSearchException("Can't perform research cause : " . $this->getLastError());
+            throw new LDAPSearchException("Can't perform research cause : " . $this->getLastError(), ldap_errno($this->connection));
         }
         $entry = ldap_first_entry($this->connection, $research);
         return $entry !== false ? self::clearEntry($this, $entry, $callback) : null;
@@ -192,7 +192,7 @@ class ConnectionLDAP
                 break;
         }
         if (!$result) {
-            throw new LDAPModifyException("Can't performe modification of $entry_dn cause : " . $this->getLastError());
+            throw new LDAPModifyException("Can't performe modification of $entry_dn cause : " . $this->getLastError(), ldap_errno($this->connection));
         }
         return $result;
     }
@@ -207,7 +207,7 @@ class ConnectionLDAP
     public function add(string $entry_dn, array $ldap_entry_attr): bool
     {
         if (!ldap_add($this->connection, $entry_dn, $ldap_entry_attr)) {
-            throw new LDAPAddException("Can't add ldap entry $entry_dn cause : " . $this->getLastError());
+            throw new LDAPAddException("Can't add ldap entry $entry_dn cause : " . $this->getLastError(), ldap_errno($this->connection));
         }
         return true;
     }
@@ -215,7 +215,7 @@ class ConnectionLDAP
     public function rename(string $entry_dn, string $rdn, string $parentOUDn): bool
     {
         if (!ldap_rename($this->connection, $entry_dn, $rdn, $parentOUDn, true)) {
-            throw new LDAPModifyException("Can't add ldap entry $entry_dn cause : " . $this->getLastError());
+            throw new LDAPModifyException("Can't add ldap entry $entry_dn cause : " . $this->getLastError(), ldap_errno($this->connection));
         }
         return true;
     }
@@ -229,7 +229,7 @@ class ConnectionLDAP
     public function delete(string $entry_dn): bool
     {
         if (!ldap_delete($this->connection, $entry_dn)) {
-            throw new LDAPDeleteException("Can't delete ldap entry $entry_dn cause : " . $this->getLastError());
+            throw new LDAPDeleteException("Can't delete ldap entry $entry_dn cause : " . $this->getLastError(), ldap_errno($this->connection));
         }
         return true;
     }
