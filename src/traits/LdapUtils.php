@@ -5,11 +5,12 @@ namespace hakuryo\ldap\traits;
 use Exception;
 use hakuryo\ldap\ConnectionLDAP;
 use hakuryo\ldap\entities\exceptions\LDAPSearchException;
+use hakuryo\ldap\entities\ObjectHydrator;
 
 trait LdapUtils
 {
 
-    public static function clearEntry(ConnectionLDAP $connection, $entry, ?callable $callback): \stdClass
+    public static function clearEntry(ConnectionLDAP $connection, $entry): \stdClass
     {
         $temp = new \stdClass();
         $temp->dn = ldap_get_dn($connection->connection, $entry);
@@ -21,34 +22,55 @@ trait LdapUtils
                 $temp->$key = count($value) > 1 ? $value : $value[0];
             }
         }
-        if ($callback != null) {
-            call_user_func($callback, $temp);
-        }
         return $temp;
     }
 
 
-    public static function processResults(ConnectionLDAP $connection, $results, &$entries, ?callable $callback, ?string $trackBy): void
+    public static function processResults(ConnectionLDAP $connection, $results, &$entries, ?callable $callback, ?string $trackBy, ?string $className = null): void
     {
         if (!$results) {
             throw new LDAPSearchException("Can't perform research cause : " . $connection->getLastError());
         }
-        $entryId = null;
-        do {
-            if ($entryId === null) {
-                $entryId = ldap_first_entry($connection->connection, $results);
-            } else {
-                $entryId = ldap_next_entry($connection->connection, $entryId);
-            }
-            if ($entryId !== false) {
-                $entry = self::clearEntry($connection, $entryId, $callback);
-                if ($trackBy != null) {
-                    $entries[$entry->$trackBy] = $entry;
-                } else {
-                    $entries[] = $entry;
+        $entryId = ldap_first_entry($connection->connection, $results);
+
+        while ($entryId !== false) {
+            // Normalize LDAP entry
+            $entry = self::clearEntry($connection, $entryId);
+            // Retrieve tracking key
+            $key = null;
+            if ($trackBy !== null) {
+                $attributes = array_change_key_case(get_object_vars($entry), CASE_LOWER);
+                $attributeName = strtolower($trackBy);
+
+                if (!array_key_exists($attributeName, $attributes)) {
+                    throw new LDAPSearchException(
+                        "Tracking attribute '$trackBy' not found"
+                    );
+                }
+
+                $key = $attributes[$attributeName];
+                if (!is_string($key) && !is_int($key)) {
+                    throw new LDAPSearchException(
+                        "Tracking attribute '$trackBy' must be scalar"
+                    );
                 }
             }
-        } while ($entryId);
+
+            // Hydrate entry if a class is provided
+            $result = $className !== null ? ObjectHydrator::hydrate($entry, $className) : $entry;
+
+            if ($callback !== null) {
+                call_user_func($callback, $result);
+            }
+
+            if ($trackBy !== null) {
+                $entries[$key] = $result;
+            } else {
+                $entries[] = $result;
+            }
+            // get next entry
+            $entryId = ldap_next_entry($connection->connection, $entryId);
+        }
     }
 
     public

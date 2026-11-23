@@ -10,6 +10,14 @@ trait ActiveDirectoryOperation
 {
 
 
+    /**
+     * @param string $uid
+     * @param bool $active
+     * @return bool
+     * @throws LDAPModifyException
+     * @throws LDAPSearchException
+     * @deprecated
+     */
     public function ADToggleAccountActivation(string $uid, bool $active): bool
     {
         $res = $this->getEntry("cn=$uid", ["dn"]);
@@ -26,6 +34,14 @@ trait ActiveDirectoryOperation
         }
     }
 
+    /**
+     * @param string $cn
+     * @param string $mdp
+     * @return bool
+     * @throws LDAPModifyException
+     * @throws LDAPSearchException
+     * @deprecated
+     */
     public function ADSetPassword(string $cn, string $mdp): bool
     {
         if (!($search = ldap_search($this->connection, $this->getSearchOptions()->getBaseDN(), "cn=$cn"))) {
